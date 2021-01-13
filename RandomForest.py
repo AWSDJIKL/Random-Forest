@@ -1,8 +1,10 @@
 import numpy as np
 import copy, random, operator
 
+
 class Tree:
     FullSampleSize = 0
+
     def __init__(self, leftBranch=None, rightBranch=None, col=-1, value=None, results=None, summary=None, data=None):
         self.leftBranch = leftBranch
         self.rightBranch = rightBranch
@@ -12,9 +14,8 @@ class Tree:
         self.summary = summary
         self.data = data
 
-
     def ToDict(self):
-        dict={}
+        dict = {}
         dict["summary"] = self.summary
         dict["results"] = self.results
         if self.leftBranch:
@@ -23,9 +24,11 @@ class Tree:
             dict["rightBranch"] = Tree.ToDict(self.rightBranch)
         return dict
 
+
 class DataSet:
     fields = {}
     data = []
+
     def __init__(self, fields={}, data=[]):
         self.fields = fields
         self.data = data
@@ -41,15 +44,14 @@ def loadCSV(fileName):
     for i in range(len(data[0])):
         fields[data[0][i]] = i
     # 记录总样本的大小
-    Tree.FullSampleSize = len(data)-1
+    Tree.FullSampleSize = len(data) - 1
     # 首行为列名
     data = data[1:, :]
     # 转为python的list
     data = data.tolist()
     # 随机划分出N+1个样本集，每个样本集里由N个样本，从原来的样本里有放回式抽取
-    for i in range(len(data)):
-    # for i in range(10):
-        print("1")
+    # for i in range(len(data)):
+    for i in range(20):
         dataSet = DataSet()
         for j in range(len(data)):
             dataSet.data.append(data[random.randint(0, len(data) - 1)])
@@ -58,6 +60,7 @@ def loadCSV(fileName):
         dataSets.append(dataSet)
     # 第一个作为测试集，后N个作为训练集
     return dataSets[1:], dataSets[0]
+
 
 # 划分数据集样本
 # dataSet：需要划分的样本
@@ -88,11 +91,13 @@ def splitDataSet(dataSet, value, column):
     rightSet = DataSet(copy.deepcopy(dataSet.fields), rightList)
     return leftSet, rightSet
 
+
 # 统计标签类每个样本个数
 '''
 该函数是计算gini值的辅助函数，假设输入的dataSet为为['A', 'B', 'C', 'A', 'A', 'D']，
 则输出为['A':3,' B':1, 'C':1, 'D':1]，这样分类统计dataSet中每个类别的数量
 '''
+
 
 def calculateDiffCount(dataSet):
     results = {}
@@ -116,17 +121,16 @@ def gini(dataSet):
         imp += pow(results[i] / length, 2)
     return 1 - imp
 
+
 def buildRandomForest(dataSets):
     forest = []
     for i in range(len(dataSets)):
         forest.append(buildDecisionTree(dataSets[i]))
     return forest
 
+
 # 根据给定样本集生成决策树
 def buildDecisionTree(dataSet, evaluationFunc=gini):
-    print("2")
-    print(type(dataSet.data))
-    print(type(dataSet.fields))
     # 计算样本数据集的划分前的基尼指数
     baseGini = evaluationFunc(dataSet.data)
     # 这个样本集中已经同属一类了，无需划分，应作为叶子节点，直接返回，结束递归
@@ -166,15 +170,18 @@ def buildDecisionTree(dataSet, evaluationFunc=gini):
         tiptext = "Decision:" + str(columnName) + ">=" + str(bestValue[1]) + "   " + \
                   "gini:" + str(baseGini)
     else:
-        tiptext ="Decision:" +  str(columnName) + "=" + str(bestValue[1]) + "    " + \
+        tiptext = "Decision:" + str(columnName) + "=" + str(bestValue[1]) + "    " + \
                   "gini:" + str(baseGini)
     leftBranch = buildDecisionTree(bestSet[0], evaluationFunc)
     rightBranch = buildDecisionTree(bestSet[1], evaluationFunc)
     return Tree(leftBranch=leftBranch, rightBranch=rightBranch, col=bestValue[0],
                 value=bestValue[1], summary=tiptext)
 
+
 # 分类测试：
 '''根据给定测试数据遍历二叉树，找到符合条件的叶子结点'''
+
+
 def tree_classify(data, tree):
     # 判断是否是叶子结点，是就返回叶子结点相关信息，否就继续遍历
     if tree.results != None:
@@ -195,11 +202,11 @@ def tree_classify(data, tree):
                 branch = tree.rightBranch
         return tree_classify(data, branch)
 
+
 # 森林投票，输出得票最多的结果
 def forest_classify(data, forest):
     result = []
     for i in range(len(forest)):
-        print("3")
         result.append(tree_classify(data, forest[i]))
     return max(result, key=result.count)
 
@@ -213,12 +220,13 @@ def test_forest(testSet, forest):
     # 返回预测准确率
     return correct / len(testSet.data)
 
+
 # 返回给定的样本集中最多的类型以及数量
 def GetMajority(dataSet):
     # 记录所有的类型的数量
     classCounts = {}
     for value in dataSet:
-        #print(value[-1])
+        # print(value[-1])
         if (value[-1] not in classCounts.keys()):
             classCounts[value[-1]] = 0
         classCounts[value[-1]] += 1
@@ -226,4 +234,42 @@ def GetMajority(dataSet):
     return sortedClassCount[0][0], sortedClassCount[0][1]
 
 
-
+# 使用F1-Measure统计量来评价决策树
+# f = 2*P*R / (1*P + R)
+# P：精确率
+# R：召回率
+# F1越高评价越高
+def MicroF1Measure(forest, testDataSet):
+    # 准确分出正类，即真实值和预测值均为正类
+    TP = 0
+    # 错误分出正类，即真实值不为正类，但预测值为正类
+    FP = 0
+    # 错误分出负类，即真实值为正类，但预测值不为正类
+    FN = 0
+    # 测试集中所有的类别
+    allClass = set([data[-1] for data in testDataSet])
+    testResult = []
+    for data in testDataSet:
+        # 测试集中真正的值，模型对数据的预测值
+        testResult.append((data[-1], forest_classify(data, forest)))
+    for c in allClass:
+        for result in testResult:
+            trueValue = result[0]
+            prediction = result[1]
+            # print("当前正类："+str(c)+" 真实值："+str(trueValue)+" 预测值："+str(prediction))
+            if trueValue == c and prediction == c:
+                TP += 1
+            if trueValue != c and prediction == c:
+                FP += 1
+            if trueValue == c and prediction != c:
+                FN += 1
+    # 除以类别数作总体平均
+    TP = TP / len(allClass)
+    FP = FP / len(allClass)
+    FN = FN / len(allClass)
+    # 计算精确率
+    precision = TP / (TP + FP)
+    # 计算召回率
+    recall = TP / (TP + FN)
+    F1Measure = 2 * (precision * recall) / (precision + recall)
+    return F1Measure
